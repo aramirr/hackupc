@@ -1,5 +1,4 @@
 import requests
-from skyscanner_exceptions import SkyscannerException
 
 api_key = 'ha772136595894388989224959580308'
 
@@ -9,25 +8,15 @@ flights_browse_prices = 'http://partners.api.skyscanner.net/apiservices/browseda
 
 start_session_url = 'http://partners.api.skyscanner.net/apiservices/pricing/v1.0'
 
-'''
-country=UK
-    currency=GBP
-    locale=en-GB
-    locationSchema=iata
-    originplace=EDI
-    destinationplace=LHR
-    outbounddate=2017-05-30
-    inbounddate=2017-06-02
-    adults=1
-    children=0
-    infants=0
-    apikey=prtl6749387986743898559646983194'
-'''
-
-current_session_url = ''
-
 
 defaults = {'country': 'ES', 'currency': 'eur', 'locale': 'en-us'}
+
+class SkyscannerException(Exception):
+    def __init__(self, value):
+        self.value = value
+        self.msg = value
+    def __str__(self):
+        return repr(self.value)
 
 
 def get_autocomplete_place_results(query, country=defaults['country'], currency=defaults['currency'], locale=defaults['locale']):
