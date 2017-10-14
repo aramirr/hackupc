@@ -1,5 +1,11 @@
 import requests
 import datetime
+import telegram
+from time import sleep
+
+import logging
+import telegram
+from telegram.error import NetworkError, Unauthorized
 from time import sleep
 
 
@@ -19,11 +25,6 @@ def last_update(data):
     total_updates = len(results) - 1
     return results[total_updates]
 
-
-def send_mess(chat, text):
-    params = {'chat_id': chat, 'text': text}
-    response = requests.post(url + 'sendMessage', data=params)
-    return response
 
 
 def new_travel(username, name, id_chat):
@@ -48,7 +49,6 @@ def get_id_travel(chat_id):
             return key
 
     return 'error'
-
 
 
 def get_travel(travel_id):
@@ -80,14 +80,14 @@ def save_info(info):
         if len(depart_date) != 3 or len(depart_date[0]) != 4 or len(depart_date[1]) != 2 or len(depart_date[2]) != 2:
             return 'Incorrect format. Please enter the Departure date [yyyy-mm-dd]'
 
-        now = datetime.datetime.now()
-        if int(depart_date[0]) < now.year or int(depart_date[1]) < now.month or int(depart_date[2]) < now.day:
-            return "Depart date can't be a past date"
-
         try:
-            datetime.datetime(int(depart_date[0]), int(depart_date[1]), int(depart_date[2]))
+            date = datetime.datetime(int(depart_date[0]), int(depart_date[1]), int(depart_date[2]))
         except:
             return "This date doesn't exists"
+
+        now = datetime.datetime.now()
+        if date < now:
+            return "Depart date can't be a past date"
 
         travel['depart_date'] = info['message']['text']
         travel['next_step'] = 'return_date'
@@ -101,37 +101,105 @@ def save_info(info):
             return 'Incorrect format. Please enter the Return date [yyyy-mm-dd]'
 
         try:
-            datetime.datetime(int(return_date[0]), int(return_date[1]), int(return_date[2]))
+            ret_date = datetime.datetime(int(return_date[0]), int(return_date[1]), int(return_date[2]))
+            dep_date = datetime.datetime(int(departure_date[0]), int(departure_date[1]), int(departure_date[2]))
         except:
             return "This date doesn't exists"
 
-        if int(departure_date[0]) > int(return_date[0]) or (int(departure_date[0]) == int(return_date[0]) and int(departure_date[1]) > int(return_date[1]) or (int(departure_date[0]) == int(return_date[0]) and int(departure_date[1]) == int(return_date[1]) and int(departure_date[2]) > int(return_date[2]))):
+        if ret_date < dep_date:
             return 'Return date must be later than Departure date. Enter the Return date [yyyy-mm-dd]'
 
         travel['return_date'] = info['message']['text']
         travel['next_step'] = 'enter_members'
-        return 'Create new member by using the command /new_member'
+        return 'Create a new member by using the command /new_member'
 
+    elif travel['next_step'] == 'member_name':
+        member = {'name': info['message']['text']}
+        if not 'members' in travel:
+            travel['members'] = [member]
+        else:
+            travel['members'].append(member)
+
+        travel['next_step'] = 'member_origin'
+
+        return 'Insert {} origin city'.format(info['message']['text'])
+
+    elif travel['next_step'] == 'member_origin':
+        for member in travel['members']:
+            if 'origin' not in member:
+                member['origin'] = info['message']['text']
+                break
+
+        travel['next_step'] = 'enter_members'
+
+        return 'New member created. Create a new member by using the command /new_member'
+
+
+def new_member(info):
+    travel_id = get_id_travel(info['message']['chat']['id'])
+    if travel_id == 'error':
+        return 'An error has ocurred. Please start a new travel from the beggining'
+
+    travel = get_travel(travel_id)
+    if travel == 'error':
+        return 'An error has ocurred. Please start a new travel from the beggining'
+
+    travel['next_step'] = 'member_name'
+    return "Insert member's name"
+
+
+update_id = None
 
 def main():
-    update_id = last_update(get_updates_json(url))['update_id']
+    global update_id
+    # Telegram Bot Authorization Token
+    bot = telegram.Bot('474902974:AAF_B8om-NzaZNXFqAFcd7ERTFsuDp52THI')
+
+    # get the first pending update_id, this is so we can skip over it in case
+    # we get an "Unauthorized" exception.
+    try:
+        '''update_id = bot.get_updates()[0].update_id'''
+        update_id = last_update(get_updates_json(url))['update_id']
+    except IndexError:
+        update_id = None
+
+    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
     while True:
-        last_input = last_update(get_updates_json(url))
-        if update_id == last_input['update_id']:
-            print(last_input)
-            if last_input['message']['text'] == '/hello':
-                output = 'Hello, wellcome to Group Travel Bot powered by SkyScanner. To start planning a new travel write /new_travel'
-
-            elif last_input['message']['text'].split(' ')[0] == '/new_travel':
-                output = new_travel(last_input['message']['from']['username'], last_input['message']['text'].split(' ')[1], last_input['message']['chat']['id'])
-
-            else:
-                output =save_info(last_input)
-
-            send_mess(last_input['message']['chat']['id'], output)
+        try:
+            engine(bot)
+        except NetworkError:
+            sleep(1)
+        except Unauthorized:
+            # The user has removed or blocked the bot.
             update_id += 1
 
-        sleep(1)
+
+def engine(bot):
+    global update_id
+    # Request updates after the last update_id
+
+    last_input = last_update(get_updates_json(url))
+    if update_id == last_input['update_id']:
+        update = bot.get_updates(offset=update_id, timeout=10)[0]
+        update_id += 1
+
+        if update.message.text == '/hello':
+            output = 'Hello, wellcome to Group Travel Bot powered by SkyScanner. To start planning a new travel write /new_travel'
+
+
+        elif update.message.text.split(' ')[0] == '/new_travel':
+            output = new_travel(update.message.chat.username, update.message.text.split(' ')[1],
+                                update.message.chat.id)
+
+
+        elif update.message.text == '/new_member':
+            output = new_member(update)
+
+        else:
+            output = save_info(update)
+
+        update.message.reply_text(output)
 
 
 if __name__ == '__main__':
