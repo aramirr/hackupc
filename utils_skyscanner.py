@@ -49,10 +49,10 @@ def get_most_similar_id_from_autocomplete_result(query):
 
 def i_get_carrier_names(best_quote, request_response, key):
     best_quote[key]['CarrierNames'] = []
-    for carrier_id in best_quote[key]['CarrierIds']:
+    for carrier_id in best_quote[key]['Carriers']:
         for carrier in request_response['Carriers']:
-            if carrier['CarrierId'] == carrier_id:
-                best_quote[key]['CarrierNames'].append(carrier['Name'])
+            if carrier['Id'] == carrier_id:
+                best_quote[key]['CarrierNames'].append(carrier)
                 break
 
 
@@ -63,17 +63,34 @@ def get_carrier_names(best_quote, request_response):
 
 def get_result_and_build_json(request_response):
     try:
-        request_response['Quotes'] = list(filter(lambda quote: ('OutboundLeg' in quote.keys()) and ('InboundLeg' in quote.keys()), request_response['Quotes']))
-
-        if len(request_response) == 0:
+        if len(request_response['Itineraries']) == 0:
             raise SkyscannerException('NoRoundTrip')
 
-        request_response['Quotes'] = sorted(request_response['Quotes'], key=lambda quote: quote['MinPrice']) #TODO verificar que funciona
-        best_quote = request_response['Quotes'][0] #TODO error si no nhi ha
+        best_result = request_response['Itineraries'][0]
 
-        get_carrier_names(best_quote, request_response)
+        quote = {}
 
-        return best_quote
+        i = 0
+        for leg in request_response['Legs']:
+            if leg['Id'] == best_result['OutboundLegId']:
+                quote['OutboundLeg'] = leg
+                i += 1
+                if i == 2:
+                    break
+            if leg['Id'] == best_result['InboundLegId']:
+                quote['InboundLeg'] = leg
+                i += 1
+                if i == 2:
+                    break
+
+
+
+        get_carrier_names(quote, request_response)
+
+        quote['MinPrice'] = min(best_result['PricingOptions'], key=lambda price_option: price_option['Price'])['Price']
+        quote['link'] = min(best_result['PricingOptions'], key=lambda price_option: price_option['Price'])['DeeplinkUrl']
+
+        return quote
     except Exception as e:
         print('Error: ' + str(e))
         raise e
@@ -110,7 +127,13 @@ def get_best_quote(request_url):
         'apiKey': api_key,
         'sortType': 'price'
     }
-    response = requests.get(request_url, params=params).json()
+
+    try:
+        response = requests.get(request_url, params=params)
+        response = response.json()
+    except Exception as e:
+        print('Error: ' + str(e))
+        raise SkyscannerException('ErrorGet')
 
     try:
         if 'ValidationErrors' in response.keys():
