@@ -7,6 +7,7 @@ import logging
 import telegram
 from telegram.error import NetworkError, Unauthorized
 from time import sleep
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 url = "https://api.telegram.org/bot474902974:AAF_B8om-NzaZNXFqAFcd7ERTFsuDp52THI/"
@@ -28,6 +29,7 @@ def last_update(data):
 
 
 def new_travel(username, name, id_chat):
+    print('MARADONA')
     id_travel = username + '_' + name
     if id_travel not in ids_map:
         ids_map[id_travel] = [id_chat, ]
@@ -40,7 +42,7 @@ def new_travel(username, name, id_chat):
     }
     database_travel.append(j)
 
-    return 'Your travel identifier is ' + str(id_travel) + '.\n Which will be your destination?'
+    return '001', 'Your travel identifier is ' + str(id_travel) + '.', j
 
 
 def get_id_travel(chat_id):
@@ -61,57 +63,56 @@ def get_travel(travel_id):
 
 
 def save_info(info):
+
     travel_id = get_id_travel(info['message']['chat']['id'])
     if travel_id == 'error':
-        return 'An error has ocurred. Please start a new travel from the beggining'
+        return new_travel(info['message']['chat']['username'], info['message']['text'],
+                          info['message']['chat']['id'])
 
     travel = get_travel(travel_id)
     if travel == 'error':
-        return 'An error has ocurred. Please start a new travel from the beggining'
+        return '400', 'An error has ocurred. Please start a new travel from the beggining', travel
 
-    if travel['next_step'] == 'destination':
+    if travel['next_step'] == 'set_destination':
         travel['destination'] = info['message']['text']
-        travel['next_step'] = 'depart_date'
-        return 'Enter the Departure date [yyyy-mm-dd]'
+        return '001', 'Done! Select an option:', travel
 
-    elif travel['next_step'] == 'depart_date':
-        depart_date = info['message']['text'].split('-')
+    elif travel['next_step'] == 'set_departure_date':
+        departure_date = info['message']['text'].split('-')
 
-        if len(depart_date) != 3 or len(depart_date[0]) != 4 or len(depart_date[1]) != 2 or len(depart_date[2]) != 2:
-            return 'Incorrect format. Please enter the Departure date [yyyy-mm-dd]'
+        if len(departure_date) != 3 or len(departure_date[0]) != 4 or len(departure_date[1]) != 2 or len(departure_date[2]) != 2:
+            return '400', 'Incorrect format. Correct format is [yyyy-mm-dd]. Select an option:', travel
 
         try:
-            date = datetime.datetime(int(depart_date[0]), int(depart_date[1]), int(depart_date[2]))
+            date = datetime.datetime(int(departure_date[0]), int(departure_date[1]), int(departure_date[2]))
         except:
-            return "This date doesn't exists"
+            return '400', "This date doesn't exists. Select an option:", travel
 
         now = datetime.datetime.now()
         if date < now:
-            return "Depart date can't be a past date"
+            return '400', "Depart date can't be a past date. Select an option:", travel
 
-        travel['depart_date'] = info['message']['text']
-        travel['next_step'] = 'return_date'
-        return 'Enter the Return date [yyyy-mm-dd]'
+        travel['departure_date'] = info['message']['text']
+        return '001', 'Done! Select an option:', travel
 
-    elif travel['next_step'] == 'return_date':
-        departure_date = travel['depart_date'].split('-')
+    elif travel['next_step'] == 'set_return_date':
+        departure_date = travel['departure_date'].split('-')
         return_date = info['message']['text'].split('-')
 
         if len(return_date) != 3 or len(return_date[0]) != 4 or len(return_date[1]) != 2 or len(return_date[2]) != 2:
-            return 'Incorrect format. Please enter the Return date [yyyy-mm-dd]'
+            return '400', 'Incorrect format. Correct format is [yyyy-mm-dd]. Select an option:', travel
 
         try:
             ret_date = datetime.datetime(int(return_date[0]), int(return_date[1]), int(return_date[2]))
             dep_date = datetime.datetime(int(departure_date[0]), int(departure_date[1]), int(departure_date[2]))
         except:
-            return "This date doesn't exists"
+            return '400', "This date doesn't exists. Select an option:", travel
 
         if ret_date < dep_date:
-            return 'Return date must be later than Departure date. Enter the Return date [yyyy-mm-dd]'
+            return '400', 'Return date must be later than Departure date. Select an option:', travel
 
         travel['return_date'] = info['message']['text']
-        travel['next_step'] = 'enter_members'
-        return 'Create a new member by using the command /new_member'
+        return '001', 'Done! Select an option:', travel
 
     elif travel['next_step'] == 'member_name':
         member = {'name': info['message']['text']}
@@ -122,7 +123,7 @@ def save_info(info):
 
         travel['next_step'] = 'member_origin'
 
-        return 'Insert {} origin city'.format(info['message']['text'])
+        return '005', 'Insert {} origin city'.format(info['message']['text']), travel
 
     elif travel['next_step'] == 'member_origin':
         for member in travel['members']:
@@ -131,12 +132,12 @@ def save_info(info):
                 break
 
         travel['next_step'] = 'enter_members'
-
-        return 'New member created. Create a new member by using the command /new_member'
+        print(database_travel)
+        return '001', 'New member created. Select an option:', travel
 
 
 def new_member(info):
-    travel_id = get_id_travel(info['message']['chat']['id'])
+    travel_id = get_id_travel(info.callback_query.message.chat.id)
     if travel_id == 'error':
         return 'An error has ocurred. Please start a new travel from the beggining'
 
@@ -182,24 +183,67 @@ def engine(bot):
     last_input = last_update(get_updates_json(url))
     if update_id == last_input['update_id']:
         update = bot.get_updates(offset=update_id, timeout=10)[0]
+
         update_id += 1
+        keyboard = None
 
-        if update.message.text == '/hello':
-            output = 'Hello, wellcome to Group Travel Bot powered by SkyScanner. To start planning a new travel write /new_travel'
+        if update.message:
+            if update.message.text == '/hello':
+                output = 'Hello, wellcome to Group Travel Bot powered by SkyScanner. To start planning a new travel write /new_travel'
+                keyboard = [[InlineKeyboardButton("New travel", callback_data='new_travel'),
+                             InlineKeyboardButton("My travels", callback_data='my_travels')],]
 
+            elif update.message.text == '/new_member':
+                output = new_member(update)
 
-        elif update.message.text.split(' ')[0] == '/new_travel':
-            output = new_travel(update.message.chat.username, update.message.text.split(' ')[1],
-                                update.message.chat.id)
+            else:
+                code, output, travel = save_info(update)
+                if code in ['001', '400']:
+                    if not ('destination' in travel and 'departure_date' in travel and 'return_date' in travel):
+                        keyboard = [[InlineKeyboardButton("Set Destination", callback_data='set_destination'),
+                                     InlineKeyboardButton("Set Departure date", callback_data='set_departure_date')], ]
+                        if 'departure_date' in travel:
+                            keyboard = [[InlineKeyboardButton("Set Destination", callback_data='set_destination'),
+                                         InlineKeyboardButton("Set Departure date", callback_data='set_departure_date'), InlineKeyboardButton("Set Return date", callback_data='set_return_date')], ]
+                    else:
+                        keyboard = [[InlineKeyboardButton("Add Member", callback_data='add_member'),
+                                     InlineKeyboardButton("Calculate Results", callback_data='calculate_results')], ]
 
+        elif update.callback_query:
+            if update.callback_query.data == 'new_travel':
+                output = 'Ok. Insert a name for this travel'
 
-        elif update.message.text == '/new_member':
-            output = new_member(update)
+            elif update.callback_query.data == 'set_destination':
+                output = 'Ok. Insert the Destination'
+                travel = get_travel(get_id_travel(update.callback_query.message.chat.id))
+                travel['next_step'] = 'set_destination'
+
+            elif update.callback_query.data == 'set_departure_date':
+                output = 'Ok. Enter the Departure date [yyyy-mm-dd]'
+                travel = get_travel(get_id_travel(update.callback_query.message.chat.id))
+                travel['next_step'] = 'set_departure_date'
+
+            elif update.callback_query.data == 'set_return_date':
+                output = 'Ok. Enter the Return date [yyyy-mm-dd]'
+                travel = get_travel(get_id_travel(update.callback_query.message.chat.id))
+                travel['next_step'] = 'set_return_date'
+
+            elif update.callback_query.data == 'add_member':
+                output = new_member(update)
 
         else:
-            output = save_info(update)
+            output = 'ERROR MARADONA'
 
-        update.message.reply_text(output)
+
+        if update.message:
+            if keyboard:
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                print(output)
+                update.message.reply_text(output, reply_markup=reply_markup)
+            else:
+                update.message.reply_text(output)
+        else:
+            update.callback_query.message.reply_text(output)
 
 
 if __name__ == '__main__':
