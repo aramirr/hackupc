@@ -1,5 +1,7 @@
 import requests
+import datetime
 from time import sleep
+
 
 url = "https://api.telegram.org/bot474902974:AAF_B8om-NzaZNXFqAFcd7ERTFsuDp52THI/"
 database_travel = []
@@ -16,11 +18,6 @@ def last_update(data):
     results = data['result']
     total_updates = len(results) - 1
     return results[total_updates]
-
-
-def get_chat_id(update):
-    chat_id = update['message']['chat']['id']
-    return chat_id
 
 
 def send_mess(chat, text):
@@ -83,6 +80,15 @@ def save_info(info):
         if len(depart_date) != 3 or len(depart_date[0]) != 4 or len(depart_date[1]) != 2 or len(depart_date[2]) != 2:
             return 'Incorrect format. Please enter the Departure date [yyyy-mm-dd]'
 
+        now = datetime.datetime.now()
+        if int(depart_date[0]) < now.year or int(depart_date[1]) < now.month or int(depart_date[2]) < now.day:
+            return "Depart date can't be a past date"
+
+        try:
+            datetime.datetime(int(depart_date[0]), int(depart_date[1]), int(depart_date[2]))
+        except:
+            return "This date doesn't exists"
+
         travel['depart_date'] = info['message']['text']
         travel['next_step'] = 'return_date'
         return 'Enter the Return date [yyyy-mm-dd]'
@@ -93,6 +99,11 @@ def save_info(info):
 
         if len(return_date) != 3 or len(return_date[0]) != 4 or len(return_date[1]) != 2 or len(return_date[2]) != 2:
             return 'Incorrect format. Please enter the Return date [yyyy-mm-dd]'
+
+        try:
+            datetime.datetime(int(return_date[0]), int(return_date[1]), int(return_date[2]))
+        except:
+            return "This date doesn't exists"
 
         if int(departure_date[0]) > int(return_date[0]) or (int(departure_date[0]) == int(return_date[0]) and int(departure_date[1]) > int(return_date[1]) or (int(departure_date[0]) == int(return_date[0]) and int(departure_date[1]) == int(return_date[1]) and int(departure_date[2]) > int(return_date[2]))):
             return 'Return date must be later than Departure date. Enter the Return date [yyyy-mm-dd]'
