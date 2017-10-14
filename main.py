@@ -1,5 +1,11 @@
 import requests
 import datetime
+import telegram
+from time import sleep
+
+import logging
+import telegram
+from telegram.error import NetworkError, Unauthorized
 from time import sleep
 
 
@@ -19,11 +25,6 @@ def last_update(data):
     total_updates = len(results) - 1
     return results[total_updates]
 
-
-def send_mess(chat, text, offset):
-    params = {'chat_id': chat, 'text': text, 'offset': offset}
-    response = requests.post(url + 'sendMessage', data=params)
-    return response
 
 
 def new_travel(username, name, id_chat):
@@ -147,28 +148,58 @@ def new_member(info):
     return "Insert member's name"
 
 
+update_id = None
+
 def main():
-    update_id = last_update(get_updates_json(url))['update_id']
+    global update_id
+    # Telegram Bot Authorization Token
+    bot = telegram.Bot('474902974:AAF_B8om-NzaZNXFqAFcd7ERTFsuDp52THI')
+
+    # get the first pending update_id, this is so we can skip over it in case
+    # we get an "Unauthorized" exception.
+    try:
+        '''update_id = bot.get_updates()[0].update_id'''
+        update_id = last_update(get_updates_json(url))['update_id']
+    except IndexError:
+        update_id = None
+
+    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
     while True:
-        last_input = last_update(get_updates_json(url))
-        if update_id == last_input['update_id']:
-            print(last_input)
-            if last_input['message']['text'] == '/hello':
-                output = 'Hello, wellcome to Group Travel Bot powered by SkyScanner. To start planning a new travel write /new_travel'
-
-            elif last_input['message']['text'].split(' ')[0] == '/new_travel':
-                output = new_travel(last_input['message']['from']['username'], last_input['message']['text'].split(' ')[1], last_input['message']['chat']['id'])
-
-            elif last_input['message']['text'] == '/new_member':
-                output = new_member(last_input)
-
-            else:
-                output = save_info(last_input)
-
-            send_mess(last_input['message']['chat']['id'], output, update_id)
+        try:
+            engine(bot)
+        except NetworkError:
+            sleep(1)
+        except Unauthorized:
+            # The user has removed or blocked the bot.
             update_id += 1
 
-        sleep(1)
+
+def engine(bot):
+    global update_id
+    # Request updates after the last update_id
+
+    last_input = last_update(get_updates_json(url))
+    if update_id == last_input['update_id']:
+        update = bot.get_updates(offset=update_id, timeout=10)[0]
+        update_id += 1
+
+        if update.message.text == '/hello':
+            output = 'Hello, wellcome to Group Travel Bot powered by SkyScanner. To start planning a new travel write /new_travel'
+
+
+        elif update.message.text.split(' ')[0] == '/new_travel':
+            output = new_travel(update.message.chat.username, update.message.text.split(' ')[1],
+                                update.message.chat.id)
+
+
+        elif update.message.text == '/new_member':
+            output = new_member(update)
+
+        else:
+            output = save_info(update)
+
+        update.message.reply_text(output)
 
 
 if __name__ == '__main__':
