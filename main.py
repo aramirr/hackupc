@@ -204,10 +204,13 @@ def engine(bot):
                                      InlineKeyboardButton("Set Departure date", callback_data='set_departure_date')], ]
                         if 'departure_date' in travel:
                             keyboard = [[InlineKeyboardButton("Set Destination", callback_data='set_destination'),
-                                         InlineKeyboardButton("Set Departure date", callback_data='set_departure_date'), InlineKeyboardButton("Set Return date", callback_data='set_return_date')], ]
+                                         InlineKeyboardButton("Set Departure date", callback_data='set_departure_date'),
+                                         InlineKeyboardButton("Set Return date", callback_data='set_return_date')], ]
                     else:
                         keyboard = [[InlineKeyboardButton("Add Member", callback_data='add_member'),
-                                     InlineKeyboardButton("Calculate Results", callback_data='calculate_results')], ]
+                                     InlineKeyboardButton("Calculate Results", callback_data='calculate_results'),
+                                     InlineKeyboardButton("Edit info", callback_data='edit_info'),
+                                     InlineKeyboardButton("Check info", callback_data='check_info')], ]
 
         elif update.callback_query:
             if update.callback_query.data == 'new_travel':
@@ -231,6 +234,20 @@ def engine(bot):
             elif update.callback_query.data == 'add_member':
                 output = new_member(update)
 
+            elif update.callback_query.data == 'edit_info':
+                output = 'Select an option: '
+                keyboard = [[InlineKeyboardButton("Set Destination", callback_data='set_destination'),
+                             InlineKeyboardButton("Set Departure date", callback_data='set_departure_date'),
+                             InlineKeyboardButton("Set Return date", callback_data='set_return_date')], ]
+
+            '''elif update.callback_query.data == 'check_info':
+                travel = get_travel(get_id_travel(update.callback_query.message.chat.id))
+                ouput = 'Travel: ' + str(travel['id']) + '\n Destination: ' + str(travel['destination']) + '\n Departure date: ' \
+                        + str(travel['departure_date']) + '\n Return date: ' + str(travel['return_date']) + '\n\n Members:'
+                for member in travel['members']:
+                    output += str(member['name']) + ' ' + str'''
+
+
         else:
             output = 'ERROR MARADONA'
 
@@ -243,7 +260,11 @@ def engine(bot):
             else:
                 update.message.reply_text(output)
         else:
-            update.callback_query.message.reply_text(output)
+            if keyboard:
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                update.callback_query.message.reply_text(output, reply_markup=reply_markup)
+            else:
+                update.callback_query.message.reply_text(output)
 
 
 if __name__ == '__main__':
