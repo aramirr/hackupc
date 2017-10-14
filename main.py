@@ -189,7 +189,7 @@ def engine(bot):
 
         if update.message:
             if update.message.text == '/hello':
-                output = 'Hello, wellcome to Group Travel Bot powered by SkyScanner. To start planning a new travel write /new_travel'
+                output = 'Hello, wellcome to Group Travel Bot powered by SkyScanner.'
                 keyboard = [[InlineKeyboardButton("New travel", callback_data='new_travel'),
                              InlineKeyboardButton("My travels", callback_data='my_travels')],]
 
@@ -240,12 +240,14 @@ def engine(bot):
                              InlineKeyboardButton("Set Departure date", callback_data='set_departure_date'),
                              InlineKeyboardButton("Set Return date", callback_data='set_return_date')], ]
 
-            '''elif update.callback_query.data == 'check_info':
+            elif update.callback_query.data == 'check_info':
                 travel = get_travel(get_id_travel(update.callback_query.message.chat.id))
-                ouput = 'Travel: ' + str(travel['id']) + '\n Destination: ' + str(travel['destination']) + '\n Departure date: ' \
-                        + str(travel['departure_date']) + '\n Return date: ' + str(travel['return_date']) + '\n\n Members:'
-                for member in travel['members']:
-                    output += str(member['name']) + ' ' + str'''
+                output = '*Travel:* ' + str(travel['id']) + '\n*Destination:* ' + str(travel['destination']) + '\n*Departure date:* ' \
+                        + str(travel['departure_date']) + '\n*Return date:* ' + str(travel['return_date'])
+                if 'members' in travel:
+                    output  =+ '\n\n*Members:*'
+                    for member in travel['members']:
+                        output += '\n' +str(member['name']) + ' travels from ' + str(member['origin'])
 
 
         else:
