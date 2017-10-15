@@ -168,7 +168,7 @@ def generate_request_quotes(api_url, origin_place, destination_place, outbound_p
 
 
 def get_depart_return_date_member(member, input):
-    depart_date = member['depart_date'] if 'depart_date' in member.keys() else input['depart_date']
+    depart_date = member['departure_date'] if 'departure_date' in member.keys() else input['departure_date']
     return_date = member['return_date'] if 'return_date' in member.keys() else input['return_date']
     return depart_date, return_date
 
@@ -183,15 +183,14 @@ def compute_min_flights_for_all(input):
             aux['name'] = member['name']
             results.append(aux)
         except Exception as e:
-            results.append({'name': member['name']})
-            results.append({'error': e})
+            results.append({'name': member['name'], 'error': e})
     return results
 
 
 
 if __name__ == '__main__':
     input = {'id': 'MrTakis_ny', 'next_step': 'enter_members', 'destination': 'new york', \
-            'depart_date': '2017-12-23', 'return_date': '2018-01-11', \
+            'departure_date': '2017-12-23', 'return_date': '2018-01-11', \
             'members': [{'name': 'Sacrest', 'origin': 'stockholm'}, {'name': 'Mirotic', 'origin': 'rome'}, \
             {'name': 'case', 'origin': 'barcelona'}, {'name': 'oscar', 'origin': 'bologne'}]}
 
