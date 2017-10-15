@@ -9,6 +9,7 @@ from telegram.error import NetworkError, Unauthorized
 from time import sleep
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from utils_skyscanner import compute_min_flights_for_all
 
 url = "https://api.telegram.org/bot474902974:AAF_B8om-NzaZNXFqAFcd7ERTFsuDp52THI/"
 database_travel = []
@@ -29,7 +30,6 @@ def last_update(data):
 
 
 def new_travel(username, name, id_chat):
-    print('MARADONA')
     id_travel = username + '_' + name
     if id_travel not in ids_map:
         ids_map[id_travel] = [id_chat, ]
@@ -38,7 +38,8 @@ def new_travel(username, name, id_chat):
 
     j = {
         'id': id_travel,
-        'next_step': 'destination'
+        'next_step': 'destination',
+        'members': []
     }
     database_travel.append(j)
 
@@ -179,38 +180,47 @@ def main():
 def engine(bot):
     global update_id
     # Request updates after the last update_id
-
-    last_input = last_update(get_updates_json(url))
-    if update_id == last_input['update_id']:
-        update = bot.get_updates(offset=update_id, timeout=10)[0]
+    try:
+        last_input = last_update(get_updates_json(url))
+    except:
+        last_input = None
+    if last_input is not None and update_id == last_input['update_id']:
+        update = bot.get_updates(offset=update_id, timeout=5)[0]
 
         update_id += 1
         keyboard = None
 
         if update.message:
             if update.message.text == '/hello':
-                output = 'Hello, wellcome to Group Travel Bot powered by SkyScanner.'
-                keyboard = [[InlineKeyboardButton("New travel", callback_data='new_travel'),
-                             InlineKeyboardButton("My travels", callback_data='my_travels')],]
+                output = 'Hello, welcome to <b>Group Travel Bot</b> powered by SkyScanner.'
+                keyboard = [[InlineKeyboardButton("New travel", callback_data='new_travel'), ],]
 
             elif update.message.text == '/new_member':
                 output = new_member(update)
 
             else:
-                code, output, travel = save_info(update)
-                if code in ['001', '400']:
-                    if not ('destination' in travel and 'departure_date' in travel and 'return_date' in travel):
-                        keyboard = [[InlineKeyboardButton("Set Destination", callback_data='set_destination'),
-                                     InlineKeyboardButton("Set Departure date", callback_data='set_departure_date')], ]
-                        if 'departure_date' in travel:
+                try:
+                    code, output, travel = save_info(update)
+
+                    if code in ['001', '400']:
+                        if not ('destination' in travel and 'departure_date' in travel and 'return_date' in travel):
                             keyboard = [[InlineKeyboardButton("Set Destination", callback_data='set_destination'),
-                                         InlineKeyboardButton("Set Departure date", callback_data='set_departure_date'),
-                                         InlineKeyboardButton("Set Return date", callback_data='set_return_date')], ]
-                    else:
-                        keyboard = [[InlineKeyboardButton("Add Member", callback_data='add_member'),
-                                     InlineKeyboardButton("Calculate Results", callback_data='calculate_results'),
-                                     InlineKeyboardButton("Edit info", callback_data='edit_info'),
-                                     InlineKeyboardButton("Check info", callback_data='check_info')], ]
+                                         InlineKeyboardButton("Set Departure date",
+                                                              callback_data='set_departure_date')], ]
+                            if 'departure_date' in travel:
+                                keyboard = [[InlineKeyboardButton("Set Destination", callback_data='set_destination')],
+                                            [InlineKeyboardButton("Set Departure date",
+                                                                  callback_data='set_departure_date'),
+                                             InlineKeyboardButton("Set Return date", callback_data='set_return_date')]]
+                        else:
+                            keyboard = [[InlineKeyboardButton("Add Member", callback_data='add_member'),
+                                         InlineKeyboardButton("Calculate Results", callback_data='calculate_results')],
+                                         [InlineKeyboardButton("Edit info", callback_data='edit_info'),
+                                         InlineKeyboardButton("Check info", callback_data='check_info')]]
+                except:
+                    output = 'Something went wrong. Start again!'
+                    keyboard = [[InlineKeyboardButton("New travel", callback_data='new_travel'), ], ]
+
 
         elif update.callback_query:
             if update.callback_query.data == 'new_travel':
@@ -219,54 +229,112 @@ def engine(bot):
             elif update.callback_query.data == 'set_destination':
                 output = 'Ok. Insert the Destination'
                 travel = get_travel(get_id_travel(update.callback_query.message.chat.id))
-                travel['next_step'] = 'set_destination'
+                if travel == 'error':
+                    output = 'Something went wrong. Start again!'
+                    keyboard = [[InlineKeyboardButton("New travel", callback_data='new_travel'), ], ]
+                else:
+                    travel['next_step'] = 'set_destination'
 
             elif update.callback_query.data == 'set_departure_date':
                 output = 'Ok. Enter the Departure date [yyyy-mm-dd]'
                 travel = get_travel(get_id_travel(update.callback_query.message.chat.id))
-                travel['next_step'] = 'set_departure_date'
+                if travel == 'error':
+                    output = 'Something went wrong. Start again!'
+                    keyboard = [[InlineKeyboardButton("New travel", callback_data='new_travel'), ], ]
+                else:
+                    travel['next_step'] = 'set_departure_date'
 
             elif update.callback_query.data == 'set_return_date':
                 output = 'Ok. Enter the Return date [yyyy-mm-dd]'
                 travel = get_travel(get_id_travel(update.callback_query.message.chat.id))
-                travel['next_step'] = 'set_return_date'
+                if travel == 'error':
+                    output = 'Something went wrong. Start again!'
+                    keyboard = [[InlineKeyboardButton("New travel", callback_data='new_travel'), ], ]
+                else:
+                    travel['next_step'] = 'set_return_date'
 
             elif update.callback_query.data == 'add_member':
                 output = new_member(update)
 
             elif update.callback_query.data == 'edit_info':
                 output = 'Select an option: '
-                keyboard = [[InlineKeyboardButton("Set Destination", callback_data='set_destination'),
-                             InlineKeyboardButton("Set Departure date", callback_data='set_departure_date'),
-                             InlineKeyboardButton("Set Return date", callback_data='set_return_date')], ]
+                keyboard = [[InlineKeyboardButton("Set Destination", callback_data='set_destination')],
+                             [InlineKeyboardButton("Set Departure date", callback_data='set_departure_date'),
+                             InlineKeyboardButton("Set Return date", callback_data='set_return_date')]]
 
             elif update.callback_query.data == 'check_info':
                 travel = get_travel(get_id_travel(update.callback_query.message.chat.id))
-                output = '*Travel:* ' + str(travel['id']) + '\n*Destination:* ' + str(travel['destination']) + '\n*Departure date:* ' \
-                        + str(travel['departure_date']) + '\n*Return date:* ' + str(travel['return_date'])
-                if 'members' in travel:
-                    output  += '\n\n*Members:*'
-                    for member in travel['members']:
-                        output += '\n' +str(member['name']) + ' travels from ' + str(member['origin'])
+                if travel == 'error':
+                    output = 'Something went wrong. Start again!'
+                    keyboard = [[InlineKeyboardButton("New travel", callback_data='new_travel'),], ]
+                else:
+                    output = '<b>Travel:</b> ' + str(travel['id']) + '\n<b>Destination:</b> ' + str(travel['destination']) + '\n<b>Departure date:</b> ' \
+                            + str(travel['departure_date']) + '\n<b>Return date:</b> ' + str(travel['return_date'])
+                    if travel['members'] != []:
+                        output  += '\n\n<b>Members:</b>'
+                        for member in travel['members']:
+                            output += '\n' +str(member['name']) + ' travels from ' + str(member['origin'])
 
+                    keyboard = [[InlineKeyboardButton("Add Member", callback_data='add_member'),
+                                 InlineKeyboardButton("Calculate Results", callback_data='calculate_results')],
+                                [InlineKeyboardButton("Edit info", callback_data='edit_info'),
+                                 InlineKeyboardButton("Check info", callback_data='check_info')]]
+
+            elif update.callback_query.data == 'calculate_results':
+                result = compute_min_flights_for_all(get_travel(get_id_travel(update.callback_query.message.chat.id)))
+                print(result)
+                '''result = [{
+                    'name': 'Aleix',
+                    'origin': 'BCN',
+                    'destination': 'JFK',
+                    'minPrice': '435',
+                    'OutBoundLeg': {
+                        'departure': '08:00',
+                        'arrival': '12:30',
+                        'stops': '1'
+                    },
+                    'InBoundLeg': {
+                        'departure': '18:50',
+                        'arrival': '7:30',
+                        'stops': '0'
+                    },
+                    'link': 'www.wikipedia.com'
+                }]'''
+                if result != []:
+                    output = 'Results:\n\n'
+                else:
+                    output = "There must be some members to calculate the results"
+                for res in result:
+                    print(res)
+                    if not 'error' in res:
+                        output += '<b>{} from {} to {} </b>\n\n<b>Price:</b> {}€ \n<b>Outbound:</b> \n <b>·Departure:</b> {} \n <b>·Arrival:</b> {} \n ' \
+                                  '<b>·Stops:</b> {} \n<b>Inbound:</b> \n <b>·Departure:</b> {} \n <b>·Arrival:</b> {} \n <b>·Stops:</b> {} \n<b>Link:</b> ' \
+                                  '<a href="{}">Tickets</a>\n\n\n'.format(res['name'], res['OutboundLeg']['OriginAirportCode'], res['OutboundLeg']['DestinationAirportCode'], res['MinPrice'], res['OutboundLeg']['Departure'], res['OutboundLeg']['Arrival'], len(res['OutboundLeg']['Stops']), res['InboundLeg']['Departure'], res['InboundLeg']['Arrival'], len(res['InboundLeg']['Stops']), res['link'])
+
+                    else:
+                        output += "There's been an error while searching for {} flights. The error is {}\n\n\n".format(res['name'], res['error'])
+
+                keyboard = [[InlineKeyboardButton("Add Member", callback_data='add_member'),
+                             InlineKeyboardButton("Calculate Results", callback_data='calculate_results')],
+                            [InlineKeyboardButton("Edit info", callback_data='edit_info'),
+                             InlineKeyboardButton("Check info", callback_data='check_info')]]
 
         else:
-            output = 'ERROR MARADONA'
-
+            output = 'Something went wrong. Start again!'
+            keyboard = [[InlineKeyboardButton("New travel", callback_data='new_travel'), ], ]
 
         if update.message:
             if keyboard:
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                print(output)
-                update.message.reply_text(output, reply_markup=reply_markup)
+                update.message.reply_text(output, reply_markup=reply_markup, parse_mode=telegram.ParseMode.HTML)
             else:
-                update.message.reply_text(output)
+                update.message.reply_text(output, parse_mode=telegram.ParseMode.HTML)
         else:
             if keyboard:
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                update.callback_query.message.reply_text(output, reply_markup=reply_markup)
+                update.callback_query.message.reply_text(output, reply_markup=reply_markup, parse_mode=telegram.ParseMode.HTML)
             else:
-                update.callback_query.message.reply_text(output)
+                update.callback_query.message.reply_text(output, parse_mode=telegram.ParseMode.HTML)
 
 
 if __name__ == '__main__':
