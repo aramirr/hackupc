@@ -9,6 +9,7 @@ from telegram.error import NetworkError, Unauthorized
 from time import sleep
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from utils_skyscanner import compute_min_flights_for_all
 
 url = "https://api.telegram.org/bot474902974:AAF_B8om-NzaZNXFqAFcd7ERTFsuDp52THI/"
 database_travel = []
@@ -29,7 +30,6 @@ def last_update(data):
 
 
 def new_travel(username, name, id_chat):
-    print('MARADONA')
     id_travel = username + '_' + name
     if id_travel not in ids_map:
         ids_map[id_travel] = [id_chat, ]
@@ -189,7 +189,7 @@ def engine(bot):
 
         if update.message:
             if update.message.text == '/hello':
-                output = 'Hello, wellcome to Group Travel Bot powered by SkyScanner.'
+                output = '*Hello*, wellcome to Group Travel Bot powered by SkyScanner.'
                 keyboard = [[InlineKeyboardButton("New travel", callback_data='new_travel'),
                              InlineKeyboardButton("My travels", callback_data='my_travels')],]
 
@@ -245,14 +245,41 @@ def engine(bot):
                 output = '*Travel:* ' + str(travel['id']) + '\n*Destination:* ' + str(travel['destination']) + '\n*Departure date:* ' \
                         + str(travel['departure_date']) + '\n*Return date:* ' + str(travel['return_date'])
                 if 'members' in travel:
-                    output  =+ '\n\n*Members:*'
+                    output  += '\n\n*Members:*'
                     for member in travel['members']:
                         output += '\n' +str(member['name']) + ' travels from ' + str(member['origin'])
 
+            elif update.callback_query.data == 'calculate_results':
+                #result = compute_min_flights_for_all(get_travel(get_id_travel(update.callback_query.message.chat.id)))
+                #print(result)
+                result = [{
+                    'name': 'Aleix',
+                    'origin': 'BCN',
+                    'destination': 'JFK',
+                    'minPrice': '435',
+                    'OutBoundLeg': {
+                        'departure': '08:00',
+                        'arrival': '12:30',
+                        'stops': '1'
+                    },
+                    'InBoundLeg': {
+                        'departure': '18:50',
+                        'arrival': '7:30',
+                        'stops': '0'
+                    },
+                    'link': 'www.wikipedia.com'
+                }]
+                output = 'Results:\n\n'
+                for res in result:
+                    output += '{} from {} to {} \n\nPrice: {} \nOutbound: \n ·Departure: {} \n ·Arrival: {} \n ' \
+                              '·Stops: {} \nInbound: \n ·Departure: {} \n ·Arrival: {} \n ·Stops: {} \nLink: ' \
+                              '{}\n\n\n'.format(res['name'], res['origin'], res['destination'], res['minPrice'], res['OutBoundLeg']['departure'], res['OutBoundLeg']['arrival'], len(res['OutBoundLeg']['stops']), res['InBoundLeg']['departure'], res['InBoundLeg']['arrival'], len(res['InBoundLeg']['stops']), res['link'])
+                    '''output += res['name'] + ' from ' + res['origin'] + ' to ' + res['destination'] + '\nPrice: ' \
+                              + res['minPrice'] + '€\nOutbound:\n ·Departure: ' + res['OutBoundLeg'][0] + '\n ·Arrival: ' + res['OutBoundLeg'][0] \
+                              + '€\nInbound:\n ·Departure: ' + res['InBoundLeg'][0] + '\n ·Arrival: ' + res['InBoundLeg'][0] + '\nLink: ' + res['link']'''
 
         else:
             output = 'ERROR MARADONA'
-
 
         if update.message:
             if keyboard:
