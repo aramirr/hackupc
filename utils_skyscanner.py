@@ -1,4 +1,5 @@
 import requests
+import datetime
 
 api_key = 'ha772136595894388989224959580308'
 
@@ -182,6 +183,10 @@ def compute_min_flights_for_all(input):
             aux = get_best_quote(session_url)
             aux['name'] = member['name']
             results.append(aux)
+            aux['OutboundLeg']['Departure'] = aux['OutboundLeg']['Departure'].replace('T', ' ')
+            aux['OutboundLeg']['Arrival'] = aux['OutboundLeg']['Arrival'].replace('T', ' ')
+            aux['InboundLeg']['Departure'] = aux['InboundLeg']['Departure'].replace('T', ' ')
+            aux['InboundLeg']['Arrival'] = aux['InboundLeg']['Arrival'].replace('T', ' ')
         except Exception as e:
             results.append({'name': member['name']})
             results.append({'error': e})
