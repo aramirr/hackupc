@@ -11,6 +11,8 @@ start_session_url = 'http://partners.api.skyscanner.net/apiservices/pricing/v1.0
 
 defaults = {'country': 'ES', 'currency': 'eur', 'locale': 'en-us'}
 
+useful_fields_leg = ['Id', 'OriginStation', 'DestinationStation', 'Departure', 'Arrival', 'Stops', 'Carriers', 'Directionality']
+
 class SkyscannerException(Exception):
     def __init__(self, value):
         self.value = value
@@ -37,17 +39,35 @@ def get_most_similar_id_from_autocomplete_result(query):
 
 
 def i_get_carrier_names(best_quote, request_response, key):
-    best_quote[key]['CarrierNames'] = []
+    best_quote[key]['CarrierInfo'] = []
     for carrier_id in best_quote[key]['Carriers']:
         for carrier in request_response['Carriers']:
             if carrier['Id'] == carrier_id:
-                best_quote[key]['CarrierNames'].append(carrier)
+                best_quote[key]['CarrierInfo'].append(carrier)
                 break
 
 
 def get_carrier_names(best_quote, request_response):
     i_get_carrier_names(best_quote, request_response, 'OutboundLeg')
     i_get_carrier_names(best_quote, request_response, 'InboundLeg')
+
+
+def add_airports_to_leg(leg, places):
+    aux_leg = {key: leg[key] for key in useful_fields_leg}
+    for place in places:
+        if aux_leg['OriginStation'] == place['Id']:
+            if place['Type'] != 'Airport':
+                print('not an airport')
+            aux_leg['OriginAirportCode'] = place['Code']
+            if 'DestinationAirportCode' in aux_leg.keys():
+                break
+        if aux_leg['DestinationStation'] == place['Id']:
+            if place['Type'] != 'Airport':
+                print('not an airport')
+            aux_leg['DestinationAirportCode'] = place['Code']
+            if 'OriginAirportCode' in aux_leg.keys():
+                break
+    return aux_leg
 
 
 def get_result_and_build_json(request_response):
@@ -62,12 +82,12 @@ def get_result_and_build_json(request_response):
         i = 0
         for leg in request_response['Legs']:
             if leg['Id'] == best_result['OutboundLegId']:
-                quote['OutboundLeg'] = leg
+                quote['OutboundLeg'] = add_airports_to_leg(leg, request_response['Places'])
                 i += 1
                 if i == 2:
                     break
             if leg['Id'] == best_result['InboundLegId']:
-                quote['InboundLeg'] = leg
+                quote['InboundLeg'] = add_airports_to_leg(leg, request_response['Places'])
                 i += 1
                 if i == 2:
                     break
@@ -120,11 +140,7 @@ def get_best_quote(request_url):
     try:
         response = requests.get(request_url, params=params)
         response = response.json()
-    except Exception as e:
-        print('Error: ' + str(e))
-        raise SkyscannerException('ErrorGet')
 
-    try:
         if 'ValidationErrors' in response.keys():
             raise SkyscannerException('ValidationErrors_' + response['ValidationErrors']['Message'])
         return get_result_and_build_json(response)
@@ -132,6 +148,9 @@ def get_best_quote(request_url):
         if 'ValidationError' in e.value:
             print('Error: ' + e.msg)
         return {'error': e.value}
+    except Exception as e:
+        print('Error: ' + str(e))
+        raise SkyscannerException('ErrorGet')
 
 
 
@@ -161,8 +180,10 @@ def compute_min_flights_for_all(input):
             depart_date, return_date = get_depart_return_date_member(member, input)
             session_url = start_session(member['origin'], input['destination'], depart_date, return_date)
             aux = get_best_quote(session_url)
+            aux['name'] = member['name']
             results.append(aux)
         except Exception as e:
+            results.append({'name': member['name']})
             results.append({'error': e})
     return results
 
@@ -171,7 +192,7 @@ def compute_min_flights_for_all(input):
 if __name__ == '__main__':
     input = {'id': 'MrTakis_ny', 'next_step': 'enter_members', 'destination': 'new york', \
             'depart_date': '2017-12-23', 'return_date': '2018-01-11', \
-            'members': [{'name': 'Sacrest', 'origin': 'stockolm'}, {'name': 'Mirotic', 'origin': 'rome'}, \
+            'members': [{'name': 'Sacrest', 'origin': 'stockholm'}, {'name': 'Mirotic', 'origin': 'rome'}, \
             {'name': 'case', 'origin': 'barcelona'}, {'name': 'oscar', 'origin': 'bologne'}]}
 
     aux = compute_min_flights_for_all(input)
