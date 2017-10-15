@@ -245,7 +245,7 @@ def engine(bot):
                 output = '*Travel:* ' + str(travel['id']) + '\n*Destination:* ' + str(travel['destination']) + '\n*Departure date:* ' \
                         + str(travel['departure_date']) + '\n*Return date:* ' + str(travel['return_date'])
                 if 'members' in travel:
-                    output  =+ '\n\n*Members:*'
+                    output  += '\n\n*Members:*'
                     for member in travel['members']:
                         output += '\n' +str(member['name']) + ' travels from ' + str(member['origin'])
 
